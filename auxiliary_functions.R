@@ -24,15 +24,15 @@ simulate <- function(n, #number of observations
     toep = rho^(0:(p-1)) #creates geometric series starting at one
     Sigma = toeplitz(toep) #creates toeplitz matrix from geometric series: rho^(i-j)
     
+    #explanatory variables
     X = mvrnorm(n, mu, Sigma)
     
     # Set snr based on sample variance on infinitely large test set
     var_mu = as.numeric(t(beta) %*% Sigma %*% beta)
-    sigma = sqrt(var_mu/SNR)
+    sigma = as.numeric(sqrt(var_mu/SNR))
     
-    
-    epsilon = rnorm(n)*sigma #, 0, sigma)
-    Y = X %*% beta + epsilon
+    # Generate response variable
+    Y = as.numeric(X %*% beta + rnorm(n)*sigma)
     
     #-------Creating data frame
     df <- data.frame(Y, X)
