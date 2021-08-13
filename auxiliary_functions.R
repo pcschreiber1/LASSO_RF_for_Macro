@@ -5,9 +5,8 @@
 # Imports
 library(MASS) 
 library(stats)
-install.packages("glmnet")
+library(Matrix)
 library(glmnet) #for LASSO
-install.packages("VSURF")
 library(VSURF)#for RF
 
 # Generating Sample
@@ -113,25 +112,59 @@ cv.lasso <- function(data, #data frame - dependent variable first
   # Uses 10 fold CV and uses 1 SE lambda
   # as conservative estimate for variable selection
   # -------------------------
-  x <- data.matrix(df[,-1]) #explan var, glmnet can't use dataframe
-  y <- data.matrix(df[,1]) #dependent var, glmnet can't use dataframe
+  x <- data.matrix(data[,-1]) #explan var, glmnet can't use dataframe
+  y <- data.matrix(data[,1]) #dependent var, glmnet can't use dataframe
   
   cv.out = cv.glmnet(x, y, alpha = 1, intercept=FALSE) # Fit lasso model on training data
   lam = cv.out$lambda.1se # Select more conservative lambda for variable selection
   
+  #---------------------
+  # Retention Frequency
+  #---------------------
   lasso_coef = predict(cv.out, type = "coefficients", s = lam) # Display coefficients using lambda chosen by CV
+  retention = var_retention(lasso_coef, beta)
+  
+  #---------------------
+  # MSE
+  #---------------------
+  mse.min <- cv.out$cvm[cv.out$lambda == cv.out$lambda.min]
   return(var_retention(lasso_coef, beta))
 }
 
+# Find retention frequency
+retention_frequency <- function(results,
+                                sparsity){
+  res = data.frame(results)
+  mean_res = as.numeric(colMeans(res)) #create list of mean values
+  frequency = mean_res / true_sparsity * 100 # get percentage
+  return(frequency)
+}
 
 
-beta = beta_1(p=100,s=5)
-df <- simulate(n=100, p=100, rho=0.5, beta=beta, SNR = 1)$df
-x <- data.matrix(df[,-1]) #explan var, glmnet can't use dataframe
-y <- data.matrix(df[,1]) #dependent var, glmnet can't use dataframe
-
-practice.vsurf <- VSURF(x=x, y=y, mtry=100)
-
-summary(practice.vsurf)
-
-plot(practice.vsurf)
+# Perform VSURF to select variables
+RF_VSURF <- function(data, #data frame - dependent variable first
+                     beta #true coefficients
+){
+  #--------------------------
+  # Uses VSURF prediction under parallelization and
+  # returns number of correctly identified  significant variables.
+  # Mytree and ntree are set to default
+  # ------------------------- 
+  x <- data.matrix(data[,-1]) #explan var, glmnet can't use dataframe
+  y <- data.matrix(data[,1]) #dependent var, glmnet can't use dataframe
+  
+  defaultW <- getOption("warn")  #Turn off warning messages
+  options(warn = -1) 
+  
+  #Variable Selection using Random Forest
+  model.vsurf <- VSURF(x=x, y=y, parallel = TRUE , ncores= 4)
+  
+  options(warn = defaultW) #re-enable warning messages
+  
+  #Create boolian vector of selected coefficients
+  loc = model.vsurf$varselect.pred # location of significant coefficients
+  estim_var = rep(0, length(beta)) #create zero vector of correct length
+  estim_var[loc] = 1 #populate zero vector
+  
+  return(var_retention(estim_var, beta))
+}

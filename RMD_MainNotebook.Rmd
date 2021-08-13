@@ -1,0 +1,254 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+
+```{r}
+#Installing packages#
+#install.packages("parallel")
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+```{r}
+library(MASS)
+library(Matrix)
+library(glmnet)
+library(Rcpp)
+library(VSURF)
+library(stats)
+library(parallel)
+```
+```{r}
+#Import auxiliary functions
+source("auxiliary_functions.R", local=FALSE)
+```
+```{r}
+set.seed(456)
+```
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+```{r}
+beta = beta_1(p=100,s=5)
+df <- simulate(n=100, p=100, rho=0.5, beta=beta, SNR = 1)$df
+x <- data.matrix(df[,-1]) #explan var, glmnet can't use dataframe
+y <- data.matrix(df[,1]) #dependent var, glmnet can't use dataframe
+
+cv.out = cv.glmnet(x, y, alpha = 1, intercept=FALSE) # Fit lasso model on training data
+plot(cv.out) # Draw plot of training MSE as a function of lambda
+lam = cv.out$lambda.1se # Select more conservative lambda for variable selection
+
+
+lasso_coef = predict(cv.out, type = "coefficients", s = lam) # Display coefficients using lambda chosen by CV
+```
+
+
+```{r}
+
+beta = beta_2(p=50,s=5)
+df <- simulate(n=100, p=50, rho=0.5, beta=beta, SNR = 1)$df
+x <- data.matrix(df[,-1]) #explan var, glmnet can't use dataframe
+y <- data.matrix(df[,1]) #dependent var, glmnet can't use dataframe
+
+practice.vsurf <- VSURF(x=x, y=y, parallel = TRUE , ncores= 4)
+
+summary(practice.vsurf)
+
+plot(practice.vsurf)
+
+practice.vsurf$err.pred
+
+```
+```{r}
+RF_VSURF <- function(data, #data frame - dependent variable first
+                     beta #true coefficients
+){
+  #--------------------------
+  # Uses VSURF prediction under parallelization and
+  # returns number of correctly identified  significant variables.
+  # Mytree and ntree are set to default
+  # ------------------------- 
+  x <- data.matrix(data[,-1]) #explan var, glmnet can't use dataframe
+  y <- data.matrix(data[,1]) #dependent var, glmnet can't use dataframe
+  
+  defaultW <- getOption("warn")  #Turn off warning messages
+  options(warn = -1) 
+  
+
+  #Variable Selection using Random Forest
+  model.vsurf <- VSURF(x=x, y=y, parallel = TRUE , ncores= 4)
+  
+  options(warn = defaultW) #re-enable warning messages
+
+  #---------------------
+  # Retention Frequency
+  #---------------------
+  #Create boolian vector of selected coefficients
+  loc = model.vsurf$varselect.pred # location of significant coefficients
+  estim_var = rep(0, length(beta)) #create zero vector of correct length
+  estim_var[loc] = 1 #populate zero vector
+  
+  retention = var_retention(estim_var, beta)
+  
+  #---------------------
+  # OOB error
+  #---------------------
+  OOB_error = tail(model.vsurf$err.pred, n=1) # VSURF returns a vector, final element is OOB error for all prediction variables
+  
+  result = list("retention" = retention, "OOB_error" = OOB_error)
+  
+  return(result)
+}
+  
+
+```
+
+
+
+```{r}
+beta = beta_2(p=50,s=5)
+df <- simulate(n=100, p=50, rho=0.5, beta=beta, SNR = 1)$df
+a <- RF_VSURF(df, beta)
+```
+```{r}
+beta = beta_2(p=50,s=5)
+df <- simulate(n=100, p=50, rho=0.5, beta=beta, SNR = 1)$df
+x <- data.matrix(df[,-1]) #explan var, glmnet can't use dataframe
+y <- data.matrix(df[,1]) #dependent var, glmnet can't use dataframe
+  
+cv.out = cv.glmnet(x, y, alpha = 1, intercept=FALSE) # Fit lasso model on training data
+
+lam = cv.out$lambda.min
+  
+lasso_coef = predict(cv.out, type = "coefficients", s = lam) # Display coefficients using lambda chosen by CV
+
+#length(cv.out$cvm)
+summary(cv.out)
+#cv.out$lambda
+```
+```{r}
+mse.min <- cv.out$cvm[cv.out$lambda == cv.out$lambda.min]
+mse.min
+```
+
+
+```{r}
+cv.lasso_2 <- function(data, #data frame - dependent variable first
+                     beta # true coefficients
+){
+  #--------------------------
+  # Uses 10 fold CV and uses 1 SE lambda
+  # as conservative estimate for variable selection
+  # -------------------------
+  x <- data.matrix(data[,-1]) #explan var, glmnet can't use dataframe
+  y <- data.matrix(data[,1]) #dependent var, glmnet can't use dataframe
+  
+  cv.out = cv.glmnet(x, y, alpha = 1, intercept=FALSE) # Fit lasso model on training data
+  #lam = cv.out$lambda.1se # Select more conservative lambda for variable selection
+  lam = cv.out$lambda.min
+  
+  #---------------------
+  # Retention Frequency
+  #---------------------
+  lasso_coef = predict(cv.out, type = "coefficients", s = lam) # Display coefficients using lambda chosen by CV
+  retention = var_retention(lasso_coef, beta)
+  
+  #---------------------
+  # MSE
+  #---------------------
+  mse.min <- cv.out$cvm[cv.out$lambda == cv.out$lambda.min]
+  
+  result = list("retention" = retention, "mse.min" = mse.min)
+  return(results)
+}
+```
+
+
+```{r}
+#--------------------------------
+# Simulation 1
+#--------------------------------
+
+start_time <- Sys.time()
+
+# Number of simulations
+n_sim = 1
+# Signal-to-noise ratios 
+snr.vec = exp(seq(log(0.05),log(6),length=10))
+#beta vector
+beta = beta_2(p=50,s=5)
+#containers to store results
+container = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
+container2 = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
+container_RF = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
+
+for (j in 1:length(snr.vec)){
+    SNR = snr.vec[j]
+    for (i in 1:n_sim){
+        df <- simulate(n=100, p=50, rho=0.5, beta=beta, SNR = SNR)$df 
+        container[i, j] = cv.lasso(data=df, beta=beta) #obtain retention of lasso
+        container2[i, j] = cv.lasso_2(data=df, beta=beta)
+        container_RF[i,j] = RF_VSURF(data=df, beta=beta)
+    }
+}
+sim1_retention = data.frame(cbind(t(container), t(container2), t(container_RF)))
+colnames(sim1_retention) = c("LASSO1", "LASSO2", "RF_pred")
+write.csv(sim1_retention,"sim1_retention.csv", row.names = FALSE)
+
+
+true_sparsity = sum(beta)# SUM as sparsity measure not correct if true beta not binary
+
+mean_ret_freq = retention_frequency(container, true_sparsity)
+plot(snr.vec, mean_ret_freq, main="Retention frequency lasso - conservative")
+
+mean_ret_freq2 = retention_frequency(container2, true_sparsity)
+plot(snr.vec, mean_ret_freq2, main="Retention frequency lasso - optimal pred")
+
+mean_ret_freq_RF = retention_frequency(container_RF, true_sparsity)
+plot(snr.vec, mean_ret_freq_RF, main="Retention frequency VSURF - prediction")
+
+end_time <- Sys.time()
+
+cat("Duration for Number of Sims = ", n_sim, "is: ", end_time - start_time)
+```
+```{r}
+retention_frequency <- function(results,
+                    sparsity){
+  res = data.frame(results)
+  mean_res = as.numeric(colMeans(res)) #create list of mean values
+  frequency = mean_res / true_sparsity * 100 # get percentage
+  return(frequency)
+}
+```
+
+```{r}
+true_sparsity = sum(beta)# SUM as sparsity measure not correct if true beta not binary
+
+mean_ret_freq = retention_frequency(container, true_sparsity)
+plot(snr.vec, mean_ret_freq, main="Retention frequency lasso - conservative")
+
+mean_ret_freq2 = retention_frequency(container2, true_sparsity)
+plot(snr.vec, mean_ret_freq2, main="Retention frequency lasso - optimal pred")
+
+mean_ret_freq_RF = retention_frequency(container_RF, true_sparsity)
+plot(snr.vec, mean_ret_freq_RF, main="Retention frequency VSURF - prediction")
+```
+
+
+```{r}
+sim1_retention = data.frame(cbind(t(container), t(container2), t(container_RF)))
+colnames(sim1_retention) = c("LASSO1", "LASSO2", "RF_pred")
+write.csv(sim1_retention,"sim1_retention.csv", row.names = FALSE)
+```
+
+
+```{r}
+res_sim1 = data.frame(matrix(NaN, ncol=3))
+colnames(res_sim1) = c("LASSO1", "LASSO2", "RF_interp")
+res_sim1$LASSO1 = container
+head(res_sim1)
+```
+
