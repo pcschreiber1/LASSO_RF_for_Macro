@@ -50,18 +50,15 @@ lasso_coef = predict(cv.out, type = "coefficients", s = lam) # Display coefficie
 
 beta = beta_2(p=50,s=5)
 df <- simulate(n=100, p=50, rho=0.5, beta=beta, SNR = 1)$df
-x <- data.matrix(df[,-1]) #explan var, glmnet can't use dataframe
-y <- data.matrix(df[,1]) #dependent var, glmnet can't use dataframe
-
-practice.vsurf <- VSURF(x=x, y=y, parallel = TRUE , ncores= 4)
-
-summary(practice.vsurf)
-
-plot(practice.vsurf)
-
-practice.vsurf$err.pred
+result = RF_VSURF(data=df, beta=beta)
 
 ```
+
+
+
+
+
+
 ```{r}
 RF_VSURF <- function(data, #data frame - dependent variable first
                      beta #true coefficients
@@ -91,14 +88,15 @@ RF_VSURF <- function(data, #data frame - dependent variable first
   estim_var = rep(0, length(beta)) #create zero vector of correct length
   estim_var[loc] = 1 #populate zero vector
   
-  retention = var_retention(estim_var, beta)
+  retention = var_retention(estim_var, beta) #counts only significant variables
+  identification = var_identification(estim_var, beta) #counts all vars
   
   #---------------------
   # OOB error
   #---------------------
-  OOB_error = tail(model.vsurf$err.pred, n=1) # VSURF returns a vector, final element is OOB error for all prediction variables
+  OOB_error = min(model.vsurf$err.pred) # VSURF returns a vector, final element is (minimal) OOB error and includes all !prediction! variables
   
-  result = list("retention" = retention, "OOB_error" = OOB_error)
+  result = list("retention" = retention, "identification" = identification, "OOB_error" = OOB_error)
   
   return(result)
 }
@@ -108,31 +106,9 @@ RF_VSURF <- function(data, #data frame - dependent variable first
 
 
 
-```{r}
-beta = beta_2(p=50,s=5)
-df <- simulate(n=100, p=50, rho=0.5, beta=beta, SNR = 1)$df
-a <- RF_VSURF(df, beta)
-```
-```{r}
-beta = beta_2(p=50,s=5)
-df <- simulate(n=100, p=50, rho=0.5, beta=beta, SNR = 1)$df
-x <- data.matrix(df[,-1]) #explan var, glmnet can't use dataframe
-y <- data.matrix(df[,1]) #dependent var, glmnet can't use dataframe
-  
-cv.out = cv.glmnet(x, y, alpha = 1, intercept=FALSE) # Fit lasso model on training data
 
-lam = cv.out$lambda.min
-  
-lasso_coef = predict(cv.out, type = "coefficients", s = lam) # Display coefficients using lambda chosen by CV
 
-#length(cv.out$cvm)
-summary(cv.out)
-#cv.out$lambda
-```
-```{r}
-mse.min <- cv.out$cvm[cv.out$lambda == cv.out$lambda.min]
-mse.min
-```
+
 
 
 ```{r}
@@ -154,14 +130,16 @@ cv.lasso_2 <- function(data, #data frame - dependent variable first
   # Retention Frequency
   #---------------------
   lasso_coef = predict(cv.out, type = "coefficients", s = lam) # Display coefficients using lambda chosen by CV
-  retention = var_retention(lasso_coef, beta)
+  retention = var_retention(lasso_coef, beta) #counts significant vars
+  identification = var_identification(lasso_coef, beta) #counts all vars
   
   #---------------------
   # MSE
   #---------------------
-  mse.min <- cv.out$cvm[cv.out$lambda == cv.out$lambda.min]
+  mse <- cv.out$cvm[cv.out$lambda == cv.out$lambda.1se]
   
-  result = list("retention" = retention, "mse.min" = mse.min)
+  
+  results = list("retention" = retention, "identification" =identification, "mse" = mse)
   return(results)
 }
 ```
@@ -175,45 +153,119 @@ cv.lasso_2 <- function(data, #data frame - dependent variable first
 start_time <- Sys.time()
 
 # Number of simulations
-n_sim = 1
+n_sim = 100
 # Signal-to-noise ratios 
 snr.vec = exp(seq(log(0.05),log(6),length=10))
 #beta vector
 beta = beta_2(p=50,s=5)
 #containers to store results
-container = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
-container2 = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
-container_RF = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
+retention_lasso = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
+retention_lasso2 = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
+retention_RF = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
 
+identification_lasso = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
+identification_lasso2 = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
+identification_RF = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
+
+prediction_lasso = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
+prediction_lasso2 = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
+prediction_RF = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
+
+#Simulation
 for (j in 1:length(snr.vec)){
     SNR = snr.vec[j]
     for (i in 1:n_sim){
         df <- simulate(n=100, p=50, rho=0.5, beta=beta, SNR = SNR)$df 
-        container[i, j] = cv.lasso(data=df, beta=beta) #obtain retention of lasso
-        container2[i, j] = cv.lasso_2(data=df, beta=beta)
-        container_RF[i,j] = RF_VSURF(data=df, beta=beta)
+        res_lasso = cv.lasso(data=df, beta=beta)
+        retention_lasso[i, j] = res_lasso$retention   
+        identification_lasso[i, j] = res_lasso$identification
+        prediction_lasso[i, j] = res_lasso$mse
+        
+        res_lasso2 = cv.lasso_2(data=df, beta=beta)
+        retention_lasso2[i, j] = res_lasso2$retention   
+        identification_lasso2[i, j] = res_lasso2$identification
+        prediction_lasso2[i, j] = res_lasso2$mse
+        
+        res_RF = RF_VSURF(data=df, beta=beta)
+        retention_RF[i, j] = res_RF$retention   
+        identification_RF[i, j] = res_RF$identification
+        prediction_RF[i, j] = res_RF$OOB_error
+        
     }
 }
-sim1_retention = data.frame(cbind(t(container), t(container2), t(container_RF)))
+
+#Saving results in dataframe
+sim1_retention = data.frame(cbind(t(retention_lasso), t(retention_lasso2), t(retention_RF)))
 colnames(sim1_retention) = c("LASSO1", "LASSO2", "RF_pred")
 write.csv(sim1_retention,"sim1_retention.csv", row.names = FALSE)
 
+sim1_identification = data.frame(cbind(t(identification_lasso), t(identification_lasso2), t(identification_RF)))
+colnames(sim1_identification) = c("LASSO1", "LASSO2", "RF_pred")
+write.csv(sim1_identification,"sim1_identification.csv", row.names = FALSE)
 
-true_sparsity = sum(beta)# SUM as sparsity measure not correct if true beta not binary
-
-mean_ret_freq = retention_frequency(container, true_sparsity)
-plot(snr.vec, mean_ret_freq, main="Retention frequency lasso - conservative")
-
-mean_ret_freq2 = retention_frequency(container2, true_sparsity)
-plot(snr.vec, mean_ret_freq2, main="Retention frequency lasso - optimal pred")
-
-mean_ret_freq_RF = retention_frequency(container_RF, true_sparsity)
-plot(snr.vec, mean_ret_freq_RF, main="Retention frequency VSURF - prediction")
+sim1_prediction = data.frame(cbind(t(prediction_lasso), t(prediction_lasso2), t(prediction_RF)))
+colnames(sim1_prediction) = c("LASSO1", "LASSO2", "RF_pred")
+write.csv(sim1_prediction,"sim1_prediction.csv", row.names = FALSE)
 
 end_time <- Sys.time()
 
 cat("Duration for Number of Sims = ", n_sim, "is: ", end_time - start_time)
+
+#--------------
+# Retention Plot
+#---------------
+true_sparsity = sum(beta)# SUM as sparsity measure not correct if true beta not binary
+plot(snr.vec, retention_frequency(retention_lasso, true_sparsity), main="Retention frequency lasso - conservative", col="blue")
+points(snr.vec, retention_frequency(retention_lasso2, true_sparsity), main="Retention frequency lasso - optimal pred", col="green")
+points(snr.vec, retention_frequency(retention_RF, true_sparsity), main="Retention frequency VSURF - prediction", col="red")
+
+#--------------
+# Identification Plot
+#---------------
+true_sparsity = length(beta)# SUM as sparsity measure not correct if true beta not binary
+plot(snr.vec, retention_frequency(identification_lasso, true_sparsity), main="Identification frequency lasso - conservative", col="blue")
+points(snr.vec, retention_frequency(identification_lasso2, true_sparsity), main="Identification frequency lasso - optimal pred", col="green")
+points(snr.vec, retention_frequency(identification_RF, true_sparsity), main="Identification frequency VSURF - prediction", col = "red")
+
+#--------------
+# Prediction Plot
+#---------------
+plot(snr.vec, error_rate(prediction_lasso), main="MSE lasso - conservative", col="blue")
+points(snr.vec, error_rate(prediction_lasso2), main="MSE lasso - optimal pred", col="green")
+points(snr.vec, error_rate(prediction_RF), main="MSE VSURF - prediction", col="red")
+
 ```
+
+```{r}
+
+
+#--------------
+# Retention Plot
+#---------------
+true_sparsity = sum(beta)# SUM as sparsity measure not correct if true beta not binary
+plot(snr.vec, retention_frequency(retention_lasso, true_sparsity), main="Retention frequency lasso - conservative", col="blue")
+points(snr.vec, retention_frequency(retention_lasso2, true_sparsity), main="Retention frequency lasso - optimal pred", col="green")
+points(snr.vec, retention_frequency(retention_RF, true_sparsity), main="Retention frequency VSURF - prediction", col="red")
+
+#--------------
+# Identification Plot
+#---------------
+true_sparsity = length(beta)# SUM as sparsity measure not correct if true beta not binary
+plot(snr.vec, retention_frequency(identification_lasso, true_sparsity), main="Identification frequency lasso - conservative", col="blue")
+points(snr.vec, retention_frequency(identification_lasso2, true_sparsity), main="Identification frequency lasso - optimal pred", col="green")
+points(snr.vec, retention_frequency(identification_RF, true_sparsity), main="Identification frequency VSURF - prediction", col = "red")
+
+#--------------
+# Prediction Plot
+#---------------
+plot(snr.vec, error_rate(prediction_lasso), main="MSE lasso - conservative", col="blue")
+points(snr.vec, error_rate(prediction_lasso2), main="MSE lasso - optimal pred", col="green")
+points(snr.vec, error_rate(prediction_RF), main="MSE VSURF - prediction", col="red")
+```
+
+
+
+
 ```{r}
 retention_frequency <- function(results,
                     sparsity){
@@ -223,6 +275,16 @@ retention_frequency <- function(results,
   return(frequency)
 }
 ```
+
+```{r}
+error_rate <- function(results){
+  res = data.frame(results)
+  mean_res = as.numeric(colMeans(res)) #create list of mean values
+  return(mean_res)
+}
+```
+
+
 
 ```{r}
 true_sparsity = sum(beta)# SUM as sparsity measure not correct if true beta not binary

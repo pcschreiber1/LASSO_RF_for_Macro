@@ -85,12 +85,12 @@ beta_3 <- function(p, #number of covariates
   return(beta)
 }
 
-# Count retention of variables
+# Count retention of significant variables
 var_retention <- function(model_coef, #coefficients of the estimated model
                           beta #true beta vector
 ){
   #--------------------------
-  # Counts how many variables were
+  # Counts how many significant variables were
   # correctly identified by the estimated model
   # -------------------------
   non_zero = model_coef != 0 #find non-zero coefficients
@@ -103,6 +103,27 @@ var_retention <- function(model_coef, #coefficients of the estimated model
   retention = sum(preserved) # preserved is boulian vector
   return(retention)   
 }
+
+
+# Identification of total variables
+var_identification <- function(model_coef, #coefficients of the estimated model
+                          beta #true beta vector
+){
+  #--------------------------
+  # Counts how many variables were
+  # correctly identified by the estimated model
+  # -------------------------
+  binary = model_coef != 0 #transform to binary
+  binary = as.numeric(binary) #transform to numeric vector
+  if (length(model_coef) != length(beta)){
+    binary = as.numeric(binary)[-1] # exclude intercept placeholder for lasso!
+  }
+  
+  corr_identified = binary == beta 
+  identification = sum(corr_identified) # corr_identified is boulian vector
+  return(identification)   
+}
+
 
 # Perform Cross-validated Lasso
 cv.lasso <- function(data, #data frame - dependent variable first
@@ -122,13 +143,16 @@ cv.lasso <- function(data, #data frame - dependent variable first
   # Retention Frequency
   #---------------------
   lasso_coef = predict(cv.out, type = "coefficients", s = lam) # Display coefficients using lambda chosen by CV
-  retention = var_retention(lasso_coef, beta)
+  retention = var_retention(lasso_coef, beta) #counts significant vars
+  identification = var_identification(lasso_coef, beta) #counts all vars
   
   #---------------------
   # MSE
   #---------------------
-  mse.min <- cv.out$cvm[cv.out$lambda == cv.out$lambda.min]
-  return(var_retention(lasso_coef, beta))
+  mse <- cv.out$cvm[cv.out$lambda == cv.out$lambda.1se] #1 standard deviation from minimum
+  
+  results = list("retention" = retention, "identification" =identification, "mse" = mse)
+  return(results)
 }
 
 # Find retention frequency
