@@ -164,6 +164,15 @@ retention_frequency <- function(results,
   return(frequency)
 }
 
+# Find error rate
+error_rate <- function(results){
+  res = data.frame(results)
+  loc = res == Inf # VSURF return Inf for OOB error of 0 model
+  res[loc] = NA # #set INF to NA
+  mean_res = as.numeric(colMeans(res, na.rm=TRUE)) #create list of mean values, ignoring NA
+  return(mean_res)
+}
+
 
 # Perform VSURF to select variables
 RF_VSURF <- function(data, #data frame - dependent variable first
