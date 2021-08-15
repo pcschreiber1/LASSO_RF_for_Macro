@@ -541,3 +541,28 @@ points(snr.vec, error_rate(prediction_lasso2), main="MSE lasso - optimal pred", 
 points(snr.vec, error_rate(prediction_RF), main="MSE VSURF - prediction", col="red", type="b")
 ```
 
+```{r}
+#--------------
+# Retention Plot
+#---------------
+true_sparsity = sum(beta)# SUM as sparsity measure not correct if true beta not binary
+plot(snr.vec, retention_frequency(retention_lasso, true_sparsity), main="Retention frequency lasso - conservative", col="blue", type = "b")
+lines(snr.vec, retention_frequency(retention_lasso2, true_sparsity), main="Retention frequency lasso - optimal pred", col="green", type="b")
+lines(snr.vec, retention_frequency(retention_RF, true_sparsity), main="Retention frequency VSURF - prediction", col="red", type="b")
+
+#--------------
+# Identification Plot
+#---------------
+true_sparsity = length(beta)# SUM as sparsity measure not correct if true beta not binary
+plot(snr.vec, retention_frequency(identification_lasso, true_sparsity), main="Identification frequency lasso - conservative", col="blue", type="b", ylim=c(0,20))
+points(snr.vec, retention_frequency(identification_lasso2, true_sparsity), main="Identification frequency lasso - optimal pred", col="green", type="b")
+points(snr.vec, retention_frequency(identification_RF, true_sparsity), main="Identification frequency VSURF - prediction", col = "red", type="b")
+
+#--------------
+# Prediction Plot
+#---------------
+plot(snr.vec, error_rate(prediction_lasso), main="MSE lasso - conservative", col="blue", type="b")
+points(snr.vec, error_rate(prediction_lasso2), main="MSE lasso - optimal pred", col="green", type="b")
+points(snr.vec, error_rate(prediction_RF), main="MSE VSURF - prediction", col="red", type="b")
+```
+
