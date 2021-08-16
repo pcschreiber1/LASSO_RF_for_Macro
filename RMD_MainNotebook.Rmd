@@ -90,6 +90,11 @@ RF_VSURF <- function(data, #data frame - dependent variable first
   
   retention = var_retention(estim_var, beta) #counts only significant variables
   identification = var_identification(estim_var, beta) #counts all vars
+
+  #---------------------
+  # Number Nonzero elements
+  #--------------------- 
+  nonzero = var_nonzero(estim_var, beta) #count nonzero vars
   
   #---------------------
   # OOB error
@@ -132,6 +137,11 @@ cv.lasso_2 <- function(data, #data frame - dependent variable first
   lasso_coef = predict(cv.out, type = "coefficients", s = lam) # Display coefficients using lambda chosen by CV
   retention = var_retention(lasso_coef, beta) #counts significant vars
   identification = var_identification(lasso_coef, beta) #counts all vars
+
+  #---------------------
+  # Number Nonzero elements
+  #--------------------- 
+  nonzero = var_nonzero(lasso_coef, beta) #count nonzero vars
   
   #---------------------
   # MSE
