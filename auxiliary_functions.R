@@ -124,6 +124,24 @@ var_identification <- function(model_coef, #coefficients of the estimated model
   return(identification)   
 }
 
+#Non-zero
+var_nonzero <- function(model_coef, #coefficients of the estimated model
+                               beta #true beta vector
+){
+  #--------------------------
+  # Counts how many variables were
+  # estimated as nonzero
+  # -------------------------
+  binary = model_coef != 0 #transform to binary
+  binary = as.numeric(binary) #transform to numeric vector
+  if (length(model_coef) != length(beta)){
+    binary = as.numeric(binary)[-1] # exclude intercept placeholder for lasso!
+  }
+  
+  nonzero = sum(binary)
+  return(nonzero)   
+}
+
 
 # Perform Cross-validated Lasso
 cv.lasso <- function(data, #data frame - dependent variable first
@@ -145,13 +163,18 @@ cv.lasso <- function(data, #data frame - dependent variable first
   lasso_coef = predict(cv.out, type = "coefficients", s = lam) # Display coefficients using lambda chosen by CV
   retention = var_retention(lasso_coef, beta) #counts significant vars
   identification = var_identification(lasso_coef, beta) #counts all vars
+ 
+  #---------------------
+  # Number Nonzero elements
+  #--------------------- 
+  nonzero = var_nonzero(lasso_coef, beta) #count nonzero vars
   
   #---------------------
   # MSE
   #---------------------
   mse <- cv.out$cvm[cv.out$lambda == cv.out$lambda.1se] #1 standard deviation from minimum
   
-  results = list("retention" = retention, "identification" =identification, "mse" = mse)
+  results = list("retention" = retention, "identification" =identification, "mse" = mse, "nonzero" = nonzero)
   return(results)
 }
 
@@ -162,6 +185,15 @@ retention_frequency <- function(results,
   mean_res = as.numeric(colMeans(res)) #create list of mean values
   frequency = mean_res / true_sparsity * 100 # get percentage
   return(frequency)
+}
+
+# Find error rate
+error_rate <- function(results){
+  res = data.frame(results)
+  loc = res == Inf # VSURF return Inf for OOB error of 0 model
+  res[loc] = NA # #set INF to NA
+  mean_res = as.numeric(colMeans(res, na.rm=TRUE)) #create list of mean values, ignoring NA
+  return(mean_res)
 }
 
 
