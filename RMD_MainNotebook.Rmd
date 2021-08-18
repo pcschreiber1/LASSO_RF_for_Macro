@@ -169,12 +169,12 @@ cv.relaxed_lasso <- function(data, #data frame - dependent variable first
   x <- data.matrix(data[,-1]) #explan var, glmnet can't use dataframe
   y <- data.matrix(data[,1]) #dependent var, glmnet can't use dataframe
   
-  cv.out = cv.glmnet(x, y,intercept=FALSE, relaxed=TRUE) # Fit lasso model on training data
+  cv.out = cv.glmnet(x, y,intercept=FALSE, relax=TRUE) # Fit lasso model on training data
 
   #---------------------
   # Retention Frequency
   #---------------------
-  lasso_coef = predict(cv.out, type = "coefficients", s = "lambda.min", gamma = 1)#"gamma.min") # Display coefficients using lambda chosen by CV
+  lasso_coef = predict(cv.out, type = "coefficients", s = "lambda.min", gamma = "gamma.min")#"gamma.min") # Display coefficients using lambda chosen by CV
   retention = var_retention(lasso_coef, beta) #counts significant vars
   identification = var_identification(lasso_coef, beta) #counts all vars
 
@@ -191,10 +191,11 @@ cv.relaxed_lasso <- function(data, #data frame - dependent variable first
   
   results = list("retention" = retention, "identification" =identification, "mse" = mse, "nonzero" = nonzero)
   return(results)
+  
 }
 ```
 
-```
+
 
 
 
@@ -206,56 +207,81 @@ set.seed(456)
 
 start_time <- Sys.time()
 
-# Simulation Paramters
+# Simulation Parameters
+#---------------------
 n_sim = 2 # Number of simulations
 snr.vec = exp(seq(log(0.05),log(6),length=10)) # Signal-to-noise ratios 
 beta = beta_1(p=50,s=5) # beta vector
 
-#containers to store results
-ret_lasso = ret_lasso2 = ret_RF = nonzero_lasso = nonzero_lasso2 = nonzero_RF = pred_lasso = pred_lasso2 = pred_RF = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
+#Container to store results
+#---------------------
+colnames = c("ID_sim", "SNR", "Method", "Retention", "Nonzero", "Prediction")
+results = data.frame(matrix(NaN, ncol=6, nrow=(n_sim*3*length(snr.vec))))
+colnames(results) <- colnames
 
-vec_colnames = c()
-for (j in list("ret", "zero", "pred")){
-  for (i in list("LASSO", "LASSO2", "RF")){
-    vec_colnames <- c(vec_colnames, paste(j, i,round(snr.vec, digits=2)), sep="_")
-  }
-}
+# Initialize Counter
+counter <- 1
 
 #Simulation
 for (j in 1:length(snr.vec)){
   SNR = snr.vec[j]
   for (i in 1:n_sim){
-    df <- simulate(n=100, p=50, rho=0.5, beta=beta, SNR = SNR)$df 
-    res_lasso = cv.lasso(data=df, beta=beta)
-    ret_lasso[i, j] = res_lasso$retention   
-    nonzero_lasso[i, j] = res_lasso$nonzero
-    pred_lasso[i, j] = res_lasso$mse
+
+    #Simulate the data
+    #------------------------------
+    df <- simulate(n=100, p=50, rho=0.5, beta=beta, SNR = SNR)$df
     
-    res_lasso2 = cv.relaxed_lasso(data=df, beta=beta)
-    ret_lasso2[i, j] = res_lasso2$retention   
-    nonzero_lasso2[i, j] = res_lasso2$nonzero
-    pred_lasso2[i, j] = res_lasso2$mse
+    ID <- paste(j,i) #identification touple of simulation
     
+    #calculate AND store the resuls
+    #------------------------------
+    #Lasso
+    res_lasso = cv.lasso_2(data=df, beta=beta)
+    results[counter,] <- c(ID, SNR, "Lasso", res_lasso$retention, res_lasso$nonzero, res_lasso$mse)
+    
+    counter = counter+1 #increase counter by 1
+    
+    #Relaxd Lasso
+    res_lasso = cv.relaxed_lasso(data=df, beta=beta)
+    results[counter,] <- c(ID, SNR, "Relaxed Lasso", res_lasso$retention, res_lasso$nonzero, res_lasso$mse)
+    
+    counter = counter+1 #increase counter by 1
+        
+    #Random Forest   
     res_RF = RF_VSURF(data=df, beta=beta)
-    ret_RF[i, j] = res_RF$retention   
-    nonzero_RF[i, j] = res_RF$nonzero
-    pred_RF[i, j] = res_RF$OOB_error
+    results[counter,] <- c(ID, SNR, "RF", res_RF$retention, res_RF$nonzero, res_RF$OOB_error)
     
+    counter = counter+1 #increase counter by 1
     
     #Save results
-    sim1= data.frame(cbind(
-      ret_lasso, ret_lasso2, ret_RF, 
-      nonzero_lasso,nonzero_lasso,nonzero_RF,
-      pred_lasso, pred_lasso2,pred_RF))
-    #colnames(sim1) = vec_colnames
-    write.csv(sim1,"sim1.csv", row.names = FALSE)
+    #------------------------------
+    write.csv(results,"sim1.csv", row.names = FALSE)
+    
   }
 }
-
 
 end_time <- Sys.time()
 
 cat("Duration for Number of Sims = ", n_sim, "is: ", end_time - start_time)
+
+
+```
+
+```{r}
+sim1 <- read.csv("sim1.csv", header=TRUE)
+View(sim1)
+```
+
+
+
+```{r}
+sim_plot <- function(data, #simulation data
+                     beta #true beta vector
+){
+  
+  
+                     }
+
 
 #--------------
 # Retention Plot
@@ -279,11 +305,6 @@ points(snr.vec, retention_frequency(nonzero_RF, true_sparsity), col = "red", typ
 plot(snr.vec, error_rate(pred_lasso), main="MSE lasso - conservative", col="blue", type="b")
 points(snr.vec, error_rate(pred_lasso2), main="MSE lasso - optimal pred", col="green", type="b")
 points(snr.vec, error_rate(pred_RF), main="MSE VSURF - pred", col="red", type="b")
-
-```
-
-```{r}
-View(sim1)
 ```
 
 
@@ -715,6 +736,7 @@ points(snr.vec, error_rate(prediction_RF), main="MSE VSURF - prediction", col="r
 
 
 
+
 ```{r}
 #--------------------------------
 # Simulation 1 - no RF
@@ -723,43 +745,43 @@ points(snr.vec, error_rate(prediction_RF), main="MSE VSURF - prediction", col="r
 start_time <- Sys.time()
 
 # Number of simulations
-n_sim = 100
+n_sim = 10
 # Signal-to-noise ratios 
 snr.vec = exp(seq(log(0.05),log(6),length=10))
 #beta vector
 beta = beta_1(p=50,s=5)
 #containers to store results
-retention_lasso = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
-retention_lasso2 = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
-retention_RF = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
+colnames = c("ID_sim", "SNR", "Method", "Retention", "Nonzero", "Prediction")
+results = data.frame(matrix(NaN, ncol=6, nrow=(n_sim*3*length(snr.vec))))
+colnames(results) <- colnames
 
-identification_lasso = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
-identification_lasso2 = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
-identification_RF = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
-
-prediction_lasso = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
-prediction_lasso2 = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
-prediction_RF = matrix(NaN, ncol=length(snr.vec), nrow=n_sim) # each column corresponds to SNR value
+counter = 1
 
 #Simulation
 for (j in 1:length(snr.vec)){
     SNR = snr.vec[j]
     for (i in 1:n_sim){
-        df <- simulate(n=100, p=50, rho=0.5, beta=beta, SNR = SNR)$df 
+        #Simulate the data
+        #------------------------------
+        df <- simulate(n=100, p=50, rho=0.5, beta=beta, SNR = SNR)$df
+        
+        ID <- j*10+i-10
+        
+        #calculate AND store the resuls
+        #------------------------------
+        #Lasso
         res_lasso = cv.lasso_2(data=df, beta=beta)
-        retention_lasso[i, j] = res_lasso$retention   
-        identification_lasso[i, j] = res_lasso$nonzero
-        prediction_lasso[i, j] = res_lasso$mse
+        results[counter,] <- c(ID, SNR, "Lasso", res_lasso$retention, res_lasso$nonzero, res_lasso$mse)
+
+        counter = counter+1 #increase counter by 1
         
-        res_lasso2 = cv.relaxed_lasso(data=df, beta=beta)
-        retention_lasso2[i, j] = res_lasso2$retention   
-        identification_lasso2[i, j] = res_lasso2$nonzero
-        prediction_lasso2[i, j] = res_lasso2$mse
+        #Relaxed Lasso
+        #------------------------------
+        res_lasso = cv.relaxed_lasso(data=df, beta=beta)
+        results[counter,] <- c(ID, SNR, "Relaxed Lasso", res_lasso$retention, res_lasso$nonzero, res_lasso$mse)
         
-        #res_RF = RF_VSURF(data=df, beta=beta)
-        #retention_RF[i, j] = res_RF$retention   
-        #identification_RF[i, j] = res_RF$nonzero
-        #prediction_RF[i, j] = res_RF$OOB_error
+        counter = counter+1
+        
         
     }
 }
@@ -770,39 +792,22 @@ end_time <- Sys.time()
 
 cat("Duration for Number of Sims = ", n_sim, "is: ", end_time - start_time)
 
-#--------------
-# Retention Plot
-#---------------
-true_sparsity = sum(beta)# SUM as sparsity measure not correct if true beta not binary
-plot(snr.vec, retention_frequency(retention_lasso, true_sparsity), main="Retention frequency lasso - conservative", col="blue", type = "b")
-lines(snr.vec, retention_frequency(retention_lasso2, true_sparsity), main="Retention frequency lasso - optimal pred", col="green", type="b")
-lines(snr.vec, retention_frequency(retention_RF, true_sparsity), main="Retention frequency VSURF - prediction", col="red", type="b")
-
-#--------------
-# Nonzero Plot
-#---------------
-
-plot(snr.vec, error_rate(identification_lasso), main="Identification frequency lasso - conservative", col="blue", type="b", ylim=c(0,50))
-points(snr.vec, error_rate(identification_lasso2), main="Identification frequency lasso - optimal pred", col="green", type="b")
-points(snr.vec, error_rate(identification_RF), main="Identification frequency VSURF - prediction", col = "red", type="b")
-
-#--------------
-# Prediction Plot
-#---------------
-plot(snr.vec, error_rate(prediction_lasso), main="MSE lasso - conservative", col="blue", type="b")
-points(snr.vec, error_rate(prediction_lasso2), main="MSE lasso - optimal pred", col="green", type="b")
-points(snr.vec, error_rate(prediction_RF), main="MSE VSURF - prediction", col="red", type="b")
+results
 
 ```
+
+
+```
+
 
 ```{r}
 #-------------
 # Analysing why Lasso behaves weirdly for SNR = 6
 #-------------
 
-beta = beta_2(p=50,s=5)
+beta = beta_2(p=150,s=5)
 #set.seed(456)
-sim <- simulate(n=100, p=50, rho=0.5, beta=beta, SNR = 90)
+sim <- simulate(n=100, p=150, rho=0.9, beta=beta, SNR = 6)
 df <- sim$df
 x <- data.matrix(df[,-1]) #explan var, glmnet can't use dataframe
 y <- data.matrix(df[,1]) #dependent var, glmnet can't use dataframe
@@ -812,7 +817,8 @@ plot(out1)
 
 out2= cv.glmnet(x,y, relax=TRUE, intercept=FALSE)#lpha=1, intercept= FALSE, relax=TRUE)
 plot(out2, se.bands=FALSE)
-lasso_coef = predict(out2, type = "coefficients", s = "lambda.min", gamma = 0)
+lasso_coef = predict(out2, type = "coefficients", s = "lambda.min", gamma = "gamma.min")
+var_retention(lasso_coef, beta)
 
 mse <- out2$cvm[out2$lambda == out2$lambda.1se]
 
@@ -825,6 +831,9 @@ mse <- out2$cvm[out2$lambda == out2$lambda.1se]
 #cat(sim$sigma)
 #lasso_coef = predict(cv.out, type = "coefficients", s = lam) # Display coefficients using lambda chosen by CV
 ```
+
+
+
 
 ```{r}
 getwd()
