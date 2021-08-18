@@ -21,7 +21,12 @@ library(Rcpp)
 library(VSURF)
 library(stats)
 library(parallel)
+
+library(dplyr)
+library(ggplot2)
 ```
+
+
 ```{r}
 #Import auxiliary functions
 source("auxiliary_functions.R", local=FALSE)
@@ -209,7 +214,7 @@ start_time <- Sys.time()
 
 # Simulation Parameters
 #---------------------
-n_sim = 2 # Number of simulations
+n_sim = 100 # Number of simulations
 snr.vec = exp(seq(log(0.05),log(6),length=10)) # Signal-to-noise ratios 
 beta = beta_1(p=50,s=5) # beta vector
 
@@ -275,36 +280,53 @@ View(sim1)
 
 
 ```{r}
-sim_plot <- function(data, #simulation data
-                     beta #true beta vector
-){
-  
-  
-                     }
+df <- sim1 %>% 
+  na_if(Inf) %>%
+  group_by(SNR, Method) %>%  
+  summarize(Mean_Ret = mean(Retention, na.rm=TRUE),
+            Mean_Zero = mean(Nonzero, na.rm=TRUE),
+            Mean_Pred = mean(Prediction, na.rm=TRUE))
+
+snr.breaks = round(exp(seq(from=min(log(sim1$SNR)),
+                           to=max(log(sim1$SNR)),length=4)),2)
+
+ggplot(data=df, aes(x=SNR, y=Mean_Ret, color=Method)) +
+  geom_line(lwd=1) +
+  geom_point(pch=19) +
+  theme_bw() +
+  #facet_grid(rows = vars(Method)) +
+  #facet_grid(formula(paste(1,"~",2))) +
+  xlab("Signal-to-noise ratio") +
+  ylab("Retention") +
+  geom_line(aes(x=SNR, y=5), lwd=0.5, linetype=3, color="black") +
+  ggtitle("Simulation 1") + 
+  scale_x_continuous(trans="log", breaks=snr.breaks)
 
 
-#--------------
-# Retention Plot
-#---------------
-true_sparsity = sum(beta)# SUM as sparsity measure not correct if true beta not binary
-plot(snr.vec, retention_frequency(ret_lasso, true_sparsity), main="Retention frequency lasso - conservative", col="blue", type = "b")
-lines(snr.vec, retention_frequency(ret_lasso2, true_sparsity), main="Retention frequency lasso - optimal pred", col="green", type="b")
-lines(snr.vec, retention_frequency(ret_RF, true_sparsity), main="Retention frequency VSURF - pred", col="red", type="b")
+ggplot(data=df, aes(x=SNR, y=Mean_Zero, color=Method)) +
+  geom_line(lwd=1) +
+  geom_point(pch=19) +
+  theme_bw() +
+  #facet_grid(rows = vars(Method)) +
+  #facet_grid(formula(paste(1,"~",2))) +
+  xlab("Signal-to-noise ratio") +
+  ylab("Number nonzero coefficients") +
+  geom_line(aes(x=SNR, y=5), lwd=0.5, linetype=3, color="black") +
+  ggtitle("Simulation 1") + 
+  scale_x_continuous(trans="log", breaks=snr.breaks)
 
-#--------------
-# Nonzero Plot
-#---------------
-true_sparsity = length(beta)# SUM as sparsity measure not correct if true beta not binary
-plot(snr.vec, retention_frequency(nonzero_lasso, true_sparsity), main="nonzero frequency lasso - conservative", col="blue", type="b", ylim=c(0,20))
-points(snr.vec, retention_frequency(nonzero_lasso2, true_sparsity), col="green", type="b")
-points(snr.vec, retention_frequency(nonzero_RF, true_sparsity), col = "red", type="b")
 
-#--------------
-# Prediction Plot
-#---------------
-plot(snr.vec, error_rate(pred_lasso), main="MSE lasso - conservative", col="blue", type="b")
-points(snr.vec, error_rate(pred_lasso2), main="MSE lasso - optimal pred", col="green", type="b")
-points(snr.vec, error_rate(pred_RF), main="MSE VSURF - pred", col="red", type="b")
+ggplot(data=df, aes(x=SNR, y=Mean_Pred, color=Method)) +
+  geom_line(lwd=1) +
+  geom_point(pch=19) +
+  theme_bw() +
+  #facet_grid(rows = vars(Method)) +
+  #facet_grid(formula(paste(1,"~",2))) +
+  xlab("Signal-to-noise ratio") +
+  ylab("Prediction Error") +
+  geom_line(aes(x=SNR, y=5), lwd=0.5, linetype=3, color="black") +
+  ggtitle("Simulation 1") + 
+  scale_x_continuous(trans="log", breaks=snr.breaks)
 ```
 
 
