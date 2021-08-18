@@ -8,6 +8,9 @@ library(stats)
 library(Matrix)
 library(glmnet) #for LASSO
 library(VSURF)#for RF
+library(ggplot2) #for plotting
+library(dplyr) #for plotting
+library(cowplot) #for plotting
 
 # Generating Sample
 simulate <- function(n, #number of observations
@@ -223,4 +226,179 @@ RF_VSURF <- function(data, #data frame - dependent variable first
   estim_var[loc] = 1 #populate zero vector
   
   return(var_retention(estim_var, beta))
+}
+
+# Function for Violin Split
+GeomSplitViolin <- ggproto(
+  "GeomSplitViolin", 
+  GeomViolin, 
+  draw_group = function(self, data, ..., draw_quantiles = NULL) {
+    data <- transform(data, 
+                      xminv = x - violinwidth * (x - xmin), 
+                      xmaxv = x + violinwidth * (xmax - x))
+    grp <- data[1,'group']
+    newdata <- dplyr::arrange(
+      transform(data, x = if(grp%%2==1) xminv else xmaxv), 
+      if(grp%%2==1) y else -y
+    )
+    newdata <- rbind(newdata[1, ], newdata, newdata[nrow(newdata), ], newdata[1, ])
+    newdata[c(1,nrow(newdata)-1,nrow(newdata)), 'x'] <- round(newdata[1, 'x']) 
+    if (length(draw_quantiles) > 0 & !scales::zero_range(range(data$y))) {
+      stopifnot(all(draw_quantiles >= 0), all(draw_quantiles <= 1))
+      quantiles <- ggplot2:::create_quantile_segment_frame(data, draw_quantiles)
+      aesthetics <- data[rep(1, nrow(quantiles)), setdiff(names(data), c("x", "y")), drop = FALSE]
+      aesthetics$alpha <- rep(1, nrow(quantiles))
+      both <- cbind(quantiles, aesthetics)
+      quantile_grob <- GeomPath$draw_panel(both, ...)
+      ggplot2:::ggname("geom_split_violin", 
+                       grid::grobTree(GeomPolygon$draw_panel(newdata, ...), quantile_grob))
+    } else {
+      ggplot2:::ggname("geom_split_violin", GeomPolygon$draw_panel(newdata, ...))
+    }
+  }
+)
+# https://debruine.github.io/posts/plot-comparison/
+geom_split_violin <- function (mapping = NULL, 
+                               data = NULL, 
+                               stat = "ydensity", 
+                               position = "identity", ..., 
+                               draw_quantiles = NULL, 
+                               trim = TRUE, 
+                               scale = "area", 
+                               na.rm = FALSE, 
+                               show.legend = NA, 
+                               inherit.aes = TRUE) {
+  layer(data = data, 
+        mapping = mapping, 
+        stat = stat, 
+        geom = GeomSplitViolin, 
+        position = position, 
+        show.legend = show.legend, 
+        inherit.aes = inherit.aes, 
+        params = list(trim = trim, 
+                      scale = scale, 
+                      draw_quantiles = draw_quantiles, 
+                      na.rm = na.rm, ...)
+  )
+}
+
+
+# Function for plotting simulation results
+plot_simulation_results(data,
+                        beta
+){
+  #calculate true sparsity
+  true_sparsity = sum(beta) #Need to change for beta type 3
+  
+  #Prepare the data
+  ## Data frame with means
+  df <- data %>% #create new data frame
+    na_if(Inf) %>% #Change INF values produced by RF
+    mutate(Retention = (Retention/true_sparsity)*100) %>%
+    group_by(SNR, Method) %>%  
+    summarize(Mean_Ret = mean(Retention, na.rm=TRUE),
+              Mean_Zero = mean(Nonzero, na.rm=TRUE),
+              Mean_Pred = mean(Prediction, na.rm=TRUE),
+              SD_Ret = sd(Retention, na.rm= TRUE),
+              SD_Zero = sd(Nonzero, na.rm=TRUE),
+              SD_Pred = sd(Prediction, na.rm=TRUE))
+  
+  # Data frame for violin plot
+  violin_data = data[data$SNR==data$SNR[600] | data$SNR==data$SNR[2000],] #selecting 0.09 and 1.22
+  violin_data$SNR = as.factor(round(violin_data$SNR, digits=2))
+  
+  # Line breaks for SNR (logarithmic scale)
+  snr.breaks = round(exp(seq(from=min(log(data$SNR)),
+                             to=max(log(data$SNR)),length=4)),2)
+  
+  # Retention Plot
+  p1 <- ggplot(data=df, aes(x=SNR, y=Mean_Ret, color=Method)) +
+    geom_line(lwd=1) +
+    geom_point(pch=19) +
+    theme_bw() +
+    xlab("Signal-to-noise ratio") +
+    ylab("Retention Frequency") +
+    geom_errorbar(aes(ymin=Mean_Ret-SD_Ret, ymax=Mean_Ret+SD_Ret), width=.2,
+                  position=position_dodge(0.05)) +
+    scale_x_continuous(trans="log", breaks=snr.breaks)
+  
+  # Nonzero Plot
+  p2 <- ggplot(data=df, aes(x=SNR, y=Mean_Zero, color=Method)) +
+    geom_line(lwd=1) +
+    geom_point(pch=19) +
+    theme_bw() +
+    xlab("Signal-to-noise ratio") +
+    ylab("Number of Nonzero Coeff") +
+    geom_line(aes(x=SNR, y=true_sparsity), lwd=0.5, linetype=3, color="black") +
+    geom_errorbar(aes(ymin=Mean_Zero-SD_Zero, ymax=Mean_Zero+SD_Zero), width=.2,
+                  position=position_dodge(0.05)) +
+    scale_x_continuous(trans="log", breaks=snr.breaks)
+  
+  # Plot of Prediction Error
+  p3 <- ggplot(data=df, aes(x=SNR, y=Mean_Pred, color=Method)) +
+    geom_line(lwd=1) +
+    geom_point(pch=19) +
+    theme_bw() +
+    #facet_grid(rows = vars(Method)) +
+    #facet_grid(formula(paste(1,"~",2))) +
+    xlab("Signal-to-noise ratio") +
+    ylab("Mean-squared Prediction Error") +
+    geom_errorbar(aes(ymin=Mean_Pred-SD_Pred, ymax=Mean_Pred+SD_Pred), width=.2,
+                  position=position_dodge(0.05)) + 
+    scale_x_continuous(trans="log", breaks=snr.breaks)
+  
+  #Violin Plot of Nonzero distribution for selected SNR values
+  p4 <- ggplot(data=violin_data, aes(x=Method, y=Nonzero, fill=SNR)) +
+    geom_split_violin(color="white", trim=FALSE) +
+    scale_fill_brewer(palette="Dark2") +
+    theme_bw() +
+    theme(legend.position=c(0.9,.75))
+  
+  #Start assembling plot
+  #---------------------
+  
+  # get legend manually
+  legend <- get_legend(
+    # create some space to the left of the legend
+    p1 + theme(legend.box.margin = margin(0, 0, 0, 12))
+  )
+  
+  # create first grid
+  g1 <- plot_grid(p1 +   theme(legend.position="none"),
+                  p2 +   theme(legend.position="none"),
+                  p3 +   theme(legend.position="none"),
+                  p4,
+                  ncol=2,
+                  nrow=2)
+  
+  # now add the title
+  title <- ggdraw() + 
+    draw_label(
+      "Simulation 1: n=100, p=50, Beta-type = 1, s=5, rho = 0.5",
+      fontface = 'bold',
+      x = 0,
+      hjust = 0
+    ) +
+    theme(
+      # add margin on the left of the drawing canvas,
+      # so title is aligned with left edge of first plot
+      plot.margin = margin(0, 0, 0, 7)
+    )
+  
+  #Create second grid with title
+  g2 <- plot_grid(
+    title, g1,
+    ncol = 1,
+    # rel_heights values control vertical title margins
+    rel_heights = c(0.1, 1)
+  )
+  
+  # get legend manually
+  legend <- get_legend(
+    # create some space to the left of the legend
+    p1 + theme(legend.box.margin = margin(0, 0, 0, 12))
+  )
+  
+  #Create final ensemble
+  plot_grid(g2, legend, rel_widths = c(3, .6))
 }

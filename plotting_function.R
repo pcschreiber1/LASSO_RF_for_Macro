@@ -109,26 +109,19 @@ plot_grid(g2, legend, rel_widths = c(3, .4))
 
 #######################################################
 
-violin_data = sim1[sim1$SNR==sim1$SNR[600] | sim1$SNR==sim1$SNR[2600],]
+violin_data = sim1[sim1$SNR==sim1$SNR[600] | sim1$SNR==sim1$SNR[2000],]
 violin_data$SNR = as.factor(round(violin_data$SNR, digits=2))
-
-
-
-typeof(violin_data$SNR[1])
 
 #boxplot
 ggplot(data=violin_data, aes(x=Method, y=Nonzero, fill=SNR)) +
-  geom_split_violin(trim=FALSE, alpha = 0.5)
-
-ggplot(data=sim1[sim1$SNR == sim1$SNR[2600],], aes(x=Method, y=Nonzero, fill=Method)) +
-    geom_violin()
-  
-
-+
-  geom_split_violin(data=sim1[sim1$SNR==sim1$SNR[1200],], aes(x=Method, y=Nonzero)) +
-  ylim(c(0, 20))
+  geom_split_violin(color="white", trim=FALSE) +
+  scale_fill_brewer(palette="Dark2") +
+  theme_bw() +
+  theme(legend.position=c(0.9,.75))
 
 
+
+# https://debruine.github.io/posts/plot-comparison/
 GeomSplitViolin <- ggproto(
   "GeomSplitViolin", 
   GeomViolin, 
