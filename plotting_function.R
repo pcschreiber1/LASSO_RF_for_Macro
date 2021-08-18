@@ -64,6 +64,17 @@ p3 <- ggplot(data=df, aes(x=SNR, y=Mean_Pred, color=Method)) +
                 position=position_dodge(0.05)) + 
   scale_x_continuous(trans="log", breaks=snr.breaks)
 
+
+violin_data = sim1[sim1$SNR==sim1$SNR[600] | sim1$SNR==sim1$SNR[2000],]
+violin_data$SNR = as.factor(round(violin_data$SNR, digits=2))
+
+#boxplot
+p4 <- ggplot(data=violin_data, aes(x=Method, y=Nonzero, fill=SNR)) +
+  geom_split_violin(color="white", trim=FALSE) +
+  scale_fill_brewer(palette="Dark2") +
+  theme_bw() +
+  theme(legend.position=c(0.9,.75))
+
 # get legend manually
 legend <- get_legend(
   # create some space to the left of the legend
@@ -75,6 +86,7 @@ legend <- get_legend(
 g1 <- plot_grid(p1 +   theme(legend.position="none"),
           p2 +   theme(legend.position="none"),
           p3 +   theme(legend.position="none"),
+          p4,
           ncol=2,
           nrow=2)
 
@@ -105,7 +117,7 @@ legend <- get_legend(
   p1 + theme(legend.box.margin = margin(0, 0, 0, 12))
 )
 
-plot_grid(g2, legend, rel_widths = c(3, .4))
+plot_grid(g2, legend, rel_widths = c(3, .6))
 
 #######################################################
 
