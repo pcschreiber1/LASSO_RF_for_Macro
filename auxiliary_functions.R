@@ -6,6 +6,7 @@
 library(MASS) 
 library(stats)
 library(Matrix)
+library(parallel)
 library(glmnet) #for LASSO
 library(VSURF)#for RF
 library(ggplot2) #for plotting

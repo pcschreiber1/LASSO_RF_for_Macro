@@ -14,16 +14,15 @@ output:
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
 ```{r}
-library(MASS)
-library(Matrix)
-library(glmnet)
-library(Rcpp)
-library(VSURF)
+library(MASS) 
 library(stats)
+library(Matrix)
 library(parallel)
-
-library(dplyr)
-library(ggplot2)
+library(glmnet) #for LASSO
+library(VSURF)#for RF
+library(ggplot2) #for plotting
+library(dplyr) #for plotting
+library(cowplot) #for plotting
 ```
 
 
