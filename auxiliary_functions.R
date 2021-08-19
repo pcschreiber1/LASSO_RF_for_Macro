@@ -200,8 +200,80 @@ error_rate <- function(results){
   return(mean_res)
 }
 
+cv.lasso_2 <- function(data, #data frame - dependent variable first
+                       beta # true coefficients
+){
+  #--------------------------
+  # Uses 10 fold CV and uses best prediciton lambda
+  # as estimate for variable selection
+  # -------------------------
+  x <- data.matrix(data[,-1]) #explan var, glmnet can't use dataframe
+  y <- data.matrix(data[,1]) #dependent var, glmnet can't use dataframe
+  
+  cv.out = cv.glmnet(x, y, alpha = 1, intercept=FALSE) # Fit lasso model on training data
+  #lam = cv.out$lambda.1se # Select more conservative lambda for variable selection
+  lam = cv.out$lambda.min
+  
+  #---------------------
+  # Retention Frequency
+  #---------------------
+  lasso_coef = predict(cv.out, type = "coefficients", s = lam) # Display coefficients using lambda chosen by CV
+  retention = var_retention(lasso_coef, beta) #counts significant vars
+  identification = var_identification(lasso_coef, beta) #counts all vars
+  
+  #---------------------
+  # Number Nonzero elements
+  #--------------------- 
+  nonzero = var_nonzero(lasso_coef, beta) #count nonzero vars
+  
+  #---------------------
+  # MSE
+  #---------------------
+  mse <- cv.out$cvm[cv.out$lambda == cv.out$lambda.1se]
+  
+  
+  results = list("retention" = retention, "identification" =identification, "mse" = mse, "nonzero" = nonzero)
+  return(results)
+}
 
-# Perform VSURF to select variables
+#relaxed lasso
+cv.relaxed_lasso <- function(data, #data frame - dependent variable first
+                             beta # true coefficients
+){
+  #--------------------------
+  # Uses 10 fold CV and uses lambda
+  # and gamma minimizing prediction error
+  # for variable selection
+  # -------------------------
+  x <- data.matrix(data[,-1]) #explan var, glmnet can't use dataframe
+  y <- data.matrix(data[,1]) #dependent var, glmnet can't use dataframe
+  
+  cv.out = cv.glmnet(x, y,intercept=FALSE, relax=TRUE) # Fit lasso model on training data
+  
+  #---------------------
+  # Retention Frequency
+  #---------------------
+  lasso_coef = predict(cv.out, type = "coefficients", s = "lambda.min", gamma = "gamma.min")#"gamma.min") # Display coefficients using lambda chosen by CV
+  retention = var_retention(lasso_coef, beta) #counts significant vars
+  identification = var_identification(lasso_coef, beta) #counts all vars
+  
+  #---------------------
+  # Number Nonzero elements
+  #--------------------- 
+  nonzero = var_nonzero(lasso_coef, beta) #count nonzero vars
+  
+  #---------------------
+  # MSE
+  #---------------------
+  mse <- cv.out$cvm[cv.out$lambda == cv.out$lambda.1se] # which gamma value is this?
+  
+  
+  results = list("retention" = retention, "identification" =identification, "mse" = mse, "nonzero" = nonzero)
+  return(results)
+  
+}
+
+# RF
 RF_VSURF <- function(data, #data frame - dependent variable first
                      beta #true coefficients
 ){
@@ -216,17 +288,36 @@ RF_VSURF <- function(data, #data frame - dependent variable first
   defaultW <- getOption("warn")  #Turn off warning messages
   options(warn = -1) 
   
+  
   #Variable Selection using Random Forest
   model.vsurf <- VSURF(x=x, y=y, parallel = TRUE , ncores= 4)
   
   options(warn = defaultW) #re-enable warning messages
   
+  #---------------------
+  # Retention Frequency
+  #---------------------
   #Create boolian vector of selected coefficients
   loc = model.vsurf$varselect.pred # location of significant coefficients
   estim_var = rep(0, length(beta)) #create zero vector of correct length
   estim_var[loc] = 1 #populate zero vector
   
-  return(var_retention(estim_var, beta))
+  retention = var_retention(estim_var, beta) #counts only significant variables
+  identification = var_identification(estim_var, beta) #counts all vars
+  
+  #---------------------
+  # Number Nonzero elements
+  #--------------------- 
+  nonzero = var_nonzero(estim_var, beta) #count nonzero vars
+  
+  #---------------------
+  # OOB error
+  #---------------------
+  OOB_error = min(model.vsurf$err.pred) # VSURF returns a vector, final element is (minimal) OOB error and includes all !prediction! variables
+  
+  result = list("retention" = retention, "identification" = identification, "OOB_error" = OOB_error, "nonzero" = nonzero)
+  
+  return(result)
 }
 
 # Function for Violin Split
@@ -285,8 +376,8 @@ geom_split_violin <- function (mapping = NULL,
 
 
 # Function for plotting simulation results
-plot_simulation_results(data,
-                        beta
+plot_simulation_results <-function(data, #simulation data
+                        beta #true beta vector
 ){
   #calculate true sparsity
   true_sparsity = sum(beta) #Need to change for beta type 3
