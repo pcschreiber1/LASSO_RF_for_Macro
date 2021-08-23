@@ -511,6 +511,8 @@ import_millions_data <- function(){
   
   # Standardizing columns (needed for shrinkage methods)
   st_millions <- cbind(millions[,2:4], scale(millions[,5:65], center=FALSE))
+  st_millions$gamma <- as.numeric(st_millions$gamma)
+  st_millions %>% filter(!is.na(gamma))
   
   return(st_millions)
 }
