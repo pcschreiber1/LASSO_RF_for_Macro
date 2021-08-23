@@ -8,8 +8,7 @@ output:
 
 
 ```{r}
-#Installing packages#
-#install.packages("parallel")
+install.packages("readxl")
 ```
 
 Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
@@ -23,6 +22,7 @@ library(VSURF)#for RF
 library(ggplot2) #for plotting
 library(dplyr) #for plotting
 library(cowplot) #for plotting
+library(readxl) #for application
 ```
 
 
@@ -910,4 +910,88 @@ RF_VSURF_pred <- function(data, #data frame - dependent variable first
 
 
 
+```{r}
+# Downloading the data
+code_book <- read_excel("data/Salai-i-Martin_1997_data/millions.XLS", sheet=1)
+millions <- read_excel("data/Salai-i-Martin_1997_data/millions.XLS", sheet=2)
+
+# Proper column names
+colnames(code_book) = c("#", "Var_name")
+colnames(millions)[5:65] = code_book$Var_name
+
+# Standardizing columns
+st_millions <- cbind(millions[,2:4], scale(millions[,5:65], center=FALSE))
+
+
+```
+
+```{r}
+millions <- import_millions_data()
+
+x <- data.matrix(cbind(rep(0, 34), seq(1, 34, length=34)))
+y <- data.matrix(seq(0,1,length=34))
+
+millions <- millions %>% drop_na()
+
+model <- cv.glmnet(x,y,alpha=1, intercept=FALSE)
+```
+
+
+```{r}
+millions <- import_millions_data()
+millions[is.na(millions)] <- 0
+a <- data.matrix(millions[, 3:64])
+
+x <- a[,-1]
+y <- a[,1]
+
+model = cv.glmnet(x,y, alpha=1, intercept=FALSE)
+plot(model)
+```
+
+
+```{r}
+
+millions <- import_millions_data()
+millions[is.na(millions)] <- 0
+a <- data.matrix(millions[, 3:64])
+
+x <- a[,-1]
+y <- a[,1]
+
+model = cv.glmnet(x,y, alpha=1, intercept=FALSE)
+lasso_coef = predict(model, type = "coefficients", s = model$lambda.min) # Display coefficients using lambda chosen by CV
+coef <- data.frame(cbind(colnames(millions[,4:64]), as.numeric(lasso_coef[-1])))
+data <- coef[order(coef[,2], decreasing=TRUE),]
+
+Lasso_ranking <- data[data[,2] != 0, 1]
+cat("Lasso ranking: ", Lasso_ranking)
+sum(lasso_coef != 0)
+
+
+model = cv.glmnet(x,y, alpha=1, intercept=FALSE, relax=TRUE)
+rel_lasso_coef = predict(model, type = "coefficients", s = "lambda.min", gamma = "gamma.min") # Display coefficients using lambda chosen by CV
+coef <- data.frame(cbind(colnames(millions[,4:64]), as.numeric(rel_lasso_coef[-1])))
+data <- coef[order(coef[,2], decreasing=TRUE),]
+
+Rel_Lasso_ranking <- data[data[,2] != 0, 1]
+cat("Rel_Lasso ranking: ", Rel_Lasso_ranking)
+sum(rel_lasso_coef != 0)
+
+```
+
+```{r}
+defaultW <- getOption("warn")  #Turn off warning messages
+options(warn = -1) 
+
+
+#Variable Selection using Random Forest
+model.vsurf <- VSURF(x=x, y=y, parallel = TRUE , ncores= 4)
+
+options(warn = defaultW) #re-enable warning messages
+
+loc = model.vsurf$varselect.pred
+
+VSURF_ranking = colnames(millions[,4:64])[loc]
+```
 

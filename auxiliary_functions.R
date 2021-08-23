@@ -509,10 +509,22 @@ import_millions_data <- function(){
   colnames(code_book) = c("#", "Var_name")
   colnames(millions)[5:65] = code_book$Var_name
   
+  defaultW <- getOption("warn")  #Turn off warning messages (coering empty to NA)
+  options(warn = -1) 
+  
   # Standardizing columns (needed for shrinkage methods)
-  st_millions <- cbind(millions[,2:4], scale(millions[,5:65], center=FALSE))
+  st_millions <- cbind(millions[,2:4], scale(millions[,5:65], center = FALSE)) #center around zero so that 0 is mean
   st_millions$gamma <- as.numeric(st_millions$gamma)
-  st_millions %>% filter(!is.na(gamma))
+  st_millions <- st_millions %>% filter(!is.na(gamma))
+  
+  options(warn = defaultW) #re-enable warning messages
+  
+  # replace NA with mean
+  colnames <- colnames(st_millions[, 3:64])
+  for (i in colnames){
+    mean = mean(st_millions[[i]], na.rm=TRUE)
+    st_millions[[i]][is.na(st_millions[[i]])] <- mean
+  }
   
   return(st_millions)
 }
