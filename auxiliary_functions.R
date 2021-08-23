@@ -494,3 +494,23 @@ plot_simulation_results <-function(data, #simulation data
   #Create final ensemble
   plot_grid(g2, legend, rel_widths = c(3, .6))
 }
+
+#-------------------
+# Application
+#-------------------
+
+#Importing Salai-I-Martin 1997 data
+import_millions_data <- function(){
+  # Loading the data
+  code_book <- read_excel("data/Salai-i-Martin_1997_data/millions.XLS", sheet=1)
+  millions <- read_excel("data/Salai-i-Martin_1997_data/millions.XLS", sheet=2)
+  
+  # Proper column names
+  colnames(code_book) = c("#", "Var_name")
+  colnames(millions)[5:65] = code_book$Var_name
+  
+  # Standardizing columns (needed for shrinkage methods)
+  st_millions <- cbind(millions[,2:4], scale(millions[,5:65], center=FALSE))
+  
+  return(st_millions)
+}
