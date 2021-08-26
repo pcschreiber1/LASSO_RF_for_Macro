@@ -948,12 +948,16 @@ y <- a[,1]
 model = cv.glmnet(x,y, alpha=1, intercept=FALSE)
 plot(model)
 ```
+```{r}
+View(millions)
+```
 
 
 ```{r}
-
+set.seed(456)
 millions <- import_millions_data()
-millions[is.na(millions)] <- 0
+#replace NA with mean
+colnames <- colnames(millions[, 3:64])
 a <- data.matrix(millions[, 3:64])
 
 x <- a[,-1]
@@ -978,9 +982,6 @@ Rel_Lasso_ranking <- data[data[,2] != 0, 1]
 cat("Rel_Lasso ranking: ", Rel_Lasso_ranking)
 sum(rel_lasso_coef != 0)
 
-```
-
-```{r}
 defaultW <- getOption("warn")  #Turn off warning messages
 options(warn = -1) 
 
@@ -993,5 +994,82 @@ options(warn = defaultW) #re-enable warning messages
 loc = model.vsurf$varselect.pred
 
 VSURF_ranking = colnames(millions[,4:64])[loc]
+
+cat("Lasso ranking: ", Lasso_ranking)
+cat("\nRel_Lasso ranking: ", Rel_Lasso_ranking)
+cat("\nVSURF ranking: ", VSURF_ranking)
+
 ```
+
+
+
+```{r}
+#--------------------------------
+# Simulation 4 - very high dimensional model: n=100, p=1000, s=10
+#--------------------------------
+set.seed(456)
+
+start_time <- Sys.time()
+
+# Simulation Parameters
+#---------------------
+n_sim = 100 # Number of simulations
+snr.vec = exp(seq(log(0.05),log(6),length=10)) # Signal-to-noise ratios 
+beta = beta_1(p=1000,s=10) # beta vector
+
+#Container to store results
+#---------------------
+colnames = c("ID_sim", "SNR", "Method", "Retention", "Nonzero", "Prediction")
+results = data.frame(matrix(NaN, ncol=6, nrow=(n_sim*3*length(snr.vec))))
+colnames(results) <- colnames
+
+# Initialize Counter
+counter <- 1
+
+#Simulation
+for (j in 1:length(snr.vec)){
+  SNR = snr.vec[j]
+  for (i in 1:n_sim){
+
+    #Simulate the data
+    #------------------------------
+    df <- simulate(n=100, p=1000, rho=0.5, beta=beta, SNR = SNR)$df
+    
+    ID <- paste(j,i) #identification touple of simulation
+    
+    #calculate AND store the resuls
+    #------------------------------
+    #Lasso
+    res_lasso = cv.lasso_2(data=df, beta=beta)
+    results[counter,] <- c(ID, SNR, "Lasso", res_lasso$retention, res_lasso$nonzero, res_lasso$mse)
+    
+    counter = counter+1 #increase counter by 1
+    
+    #Relaxd Lasso
+    res_lasso = cv.relaxed_lasso(data=df, beta=beta)
+    results[counter,] <- c(ID, SNR, "Relaxed Lasso", res_lasso$retention, res_lasso$nonzero, res_lasso$mse)
+    
+    counter = counter+1 #increase counter by 1
+        
+    #Random Forest   
+    res_RF = RF_VSURF(data=df, beta=beta)
+    results[counter,] <- c(ID, SNR, "RF", res_RF$retention, res_RF$nonzero, res_RF$OOB_error)
+    
+    counter = counter+1 #increase counter by 1
+    
+    #Save results
+    #------------------------------
+    write.csv(results,"sim4.csv", row.names = FALSE)
+    
+  }
+}
+
+end_time <- Sys.time()
+
+cat("Duration for Number of Sims = ", n_sim, "is: ", end_time - start_time)
+
+sim4 <- read.csv("sim4.csv", header=TRUE)
+plot_simulation_results(sim4, beta)
+```
+
 
