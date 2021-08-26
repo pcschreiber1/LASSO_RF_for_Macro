@@ -531,9 +531,10 @@ import_millions_data <- function(){
 
 
 # Creating table of results
-create_results_table <- function(Lasso_model,
-                                 rel_Lasso_model,
-                                 model.vsurf){
+create_results_table <- function(Lasso_model, #results of CV Lasso
+                                 rel_Lasso_model, #results of CV relaxed Lasso
+                                 model.vsurf #results of VSURF
+){
   #-------------------------------------------------------
   # This function creates a table listing
   # the important variables chosen by the three methods,
@@ -592,7 +593,7 @@ create_results_table <- function(Lasso_model,
                    "LIFEE060" = "Life expectancy",
                    "GDPSH60" = "GDP level 1960",
                    "NONEQINV" = "Non-Equipment Investment",
-                   "P60" = "Primary School Entrollment Rate",
+                   "P60" = "Primary School Enrollment Rate",
                    "prightsb" = "Political rights",
                    "BUDDHA" = "Fraction Buddhist",
                    "ABSLATIT" = "Absolute Latitude",
@@ -615,12 +616,12 @@ create_results_table <- function(Lasso_model,
   
   column1 <- unique(c(CDF$Var,Lasso_coef$Var, rel_Lasso_coef$Var, RF_vars$Var))
   appli_res <- data.frame("Selected Variables" = column1,
-                          "CDF" = NaN,
-                          "Lasso1" = NaN,
-                          "Lasso2" = NaN,
-                          "relaxed Lasso1" = NaN,
-                          "relaxed Lasso2" = NaN,
-                          "Random Forest" = NaN)
+                          "CDF" = "",
+                          #"Lasso1" = NaN,
+                          "Lasso" = "",
+                          #"relaxed Lasso1" = NaN,
+                          "relaxed Lasso" = "",
+                          "Random Forest" = "")
   
   # Filling CDF
   appli_res$CDF[1:length(CDF$Var)] = CDF$unlist.CDF
@@ -632,15 +633,25 @@ create_results_table <- function(Lasso_model,
   
   #Filling Lasso
   for (i in Lasso_coef$Var){
-    appli_res$Lasso1[appli_res$Selected.Variables == i] <- Lasso_coef$lambda.min[Lasso_coef$Var == i] #coefficient
-    appli_res$Lasso2[appli_res$Selected.Variables == i] <- Lasso_coef$Rank[Lasso_coef$Var == i] #rank
+    #appli_res$Lasso1[appli_res$Selected.Variables == i] <- Lasso_coef$lambda.min[Lasso_coef$Var == i] #coefficient
+    appli_res$Lasso[appli_res$Selected.Variables == i] <- Lasso_coef$Rank[Lasso_coef$Var == i] #rank
   }
   
   #Filling relaxed Lasso
   for (i in rel_Lasso_coef$Var){
-    appli_res$relaxed.Lasso1[appli_res$Selected.Variables == i] <- rel_Lasso_coef$lambda.min[rel_Lasso_coef$Var == i] #coefficient
-    appli_res$relaxed.Lasso2[appli_res$Selected.Variables == i] <- rel_Lasso_coef$Rank[rel_Lasso_coef$Var == i] #rank
+    #appli_res$relaxed.Lasso1[appli_res$Selected.Variables == i] <- rel_Lasso_coef$lambda.min[rel_Lasso_coef$Var == i] #coefficient
+    appli_res$relaxed.Lasso[appli_res$Selected.Variables == i] <- rel_Lasso_coef$Rank[rel_Lasso_coef$Var == i] #rank
   }
   
-  return(appli_res)
+  #Creating personalised table using kable (HTML)
+  options(knitr.kable.NA = "") #don't display NA
+  table <- kable(appli_res,
+                 col.names = gsub("[.]", " ", names(appli_res)), #proper column names
+                 align = "lcccc")%>% #allignment
+    kable_classic() %>%
+    row_spec(c(2,4), bold = T, color = "white", background = "darkgreen") %>%
+    row_spec(c(11, 12), bold = T, color = "white", background = "green") 
+  
+  # display results
+  display_html(head(table))
 }
