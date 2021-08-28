@@ -1,30 +1,11 @@
 # Comp_Stat_Project
-Project for the course of Computation statistics, summer semester 2021 MSc Economics University of Bonn
+--- 
+Project for the course in Computational Statistics | Summer 2021, M.Sc. Economics, Bonn University | [Philipp Schreiber](https://github.com/pcschreiber1)
 
-Content
- - Variable selection with Lasso
-  - (Not really like bottom-up adding of variables to get optimal predictive model)
- - Variable selection with Random Forest (RF)
-  - Why random forest and not boosting (who's penalty score looks similar to Lasso)
-  - Why comparing linear and non-linear method?
-    - common questions of interest like behaviour in collinearity?
-      - both seem to **"bet" on sparsity**? [not entirely sure for RF]
-    - or can they be competing methods? If so, for what type of applications
-      - maybe also interesting to simply compare - since the latter one isn't used much in economics?
- - Simulation Study
-    - Measures: MSE, comparison to Oracle rate (OLS with true DGP)
-      - variable selection: retention frequency (Epprecht, 2013) [Genuer only use prediciton error]
- - Application
-   
-Covariance matrix $\rho^{i-j}$ or additional term for correlation of only some variables?
+# Variable Selection with High-Dimensional Low-Quality Data
+## A comparison of LASSO and Random Forest. <a class="tocSkip">   
+    
+    
+---
 
-Genuer (2015): "RF is typically built using ntree = 2000 trees"
-
-Is RF model selection also a shrinkage/regularization method or also a subset selection method?
-
-Maybe not that important that they are the same method if they have other properties that connects the two: 
- - RF is supposed to have low variance, no? So are shrinkage methods!
-    - So maybe the scenario where Lasso outperforms subset selection methods is also useful for RF? (Hastie et al 2020: Lasso outperforms forward step-wise selection if low signal-to-noise ratio (SNR))
- - Variable Importance scores are biased towards correlated variables (Genuer, 2015 - citing Strobl)
-   - but not that helpful connection if both simply suffer from the same shortcoming (but maybe good for a side-note comparison)
- - Are LASSO and RF both embedded feature selection methods?
+In this notebook, I contribute to the analysis of variable selection under high-dimensional low quality data by comparing the performance of the LASSO and relaxed Lasso to another method designed for efficient varaince reduction: Random Forests (RF). RF-based variable selection procedures have become especially popular in bio-medical sciences, but, so-far, are still uncommon in many strands of economics. Here we apply the data-driven technique of Genuer et al. (2010), which is implemented in the `VSURF` package.  Three different simulation studies are conducted which closely emulate real-world macro-economic data and each illustrate the methodologies' behaviour under different challenges. Importantly, given the liability of direct comparisons of parametric and non-parametric methods to the underlying data generating process (DGP), we here focus on the techniques' relative performance under different levels of noise clarity. The discussion is complemented by an application to Sala-I-Martin's (1997b) famous "millions" data set, which has frequently been used to showcase variable selection strategies for macro-economic growth models.
