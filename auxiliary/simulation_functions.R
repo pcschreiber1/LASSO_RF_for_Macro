@@ -377,10 +377,11 @@ geom_split_violin <- function (mapping = NULL,
 
 # Function for plotting simulation results
 plot_simulation_results <-function(data, #simulation data
-                        beta #true beta vector
+                        beta, #true beta vector
+                        title_text #title text
 ){
   #calculate true sparsity
-  true_sparsity = sum(beta) #Need to change for beta type 3
+  true_sparsity = sum(beta == 1) #Need to change for beta type 3
   
   #Prepare the data
   ## Data frame with means
@@ -412,7 +413,8 @@ plot_simulation_results <-function(data, #simulation data
     ylab("Retention Frequency") +
     geom_errorbar(aes(ymin=Mean_Ret-SD_Ret, ymax=Mean_Ret+SD_Ret), width=.2,
                   position=position_dodge(0.05)) +
-    scale_x_continuous(trans="log", breaks=snr.breaks)
+    scale_x_continuous(trans="log", breaks=snr.breaks) +
+    scale_y_continuous(breaks=round(seq(0,100, length=5),0))
   
   # Nonzero Plot
   p2 <- ggplot(data=df, aes(x=SNR, y=Mean_Zero, color=Method)) +
@@ -437,14 +439,16 @@ plot_simulation_results <-function(data, #simulation data
     ylab("Mean-squared Prediction Error") +
     geom_errorbar(aes(ymin=Mean_Pred-SD_Pred, ymax=Mean_Pred+SD_Pred), width=.2,
                   position=position_dodge(0.05)) + 
-    scale_x_continuous(trans="log", breaks=snr.breaks)
+    scale_x_continuous(trans="log", breaks=snr.breaks) +
+    scale_y_continuous(limits = c(0, NA))
   
   #Violin Plot of Nonzero distribution for selected SNR values
   p4 <- ggplot(data=violin_data, aes(x=Method, y=Nonzero, fill=SNR)) +
-    geom_split_violin(color="white", trim=FALSE) +
+    geom_split_violin(color="white", trim=TRUE) +
     scale_fill_brewer(palette="Dark2") +
     theme_bw() +
-    theme(legend.position=c(0.9,.75))
+    theme(legend.position=c(0.9,.75)) #+
+    #scale_y_continuous(limits = c(0, NA))
   
   #Start assembling plot
   #---------------------
@@ -466,7 +470,7 @@ plot_simulation_results <-function(data, #simulation data
   # now add the title
   title <- ggdraw() + 
     draw_label(
-      "Simulation 1: n=100, p=50, Beta-type = 1, s=5, rho = 0.5",
+      title_text,
       fontface = 'bold',
       x = 0,
       hjust = 0
@@ -490,7 +494,6 @@ plot_simulation_results <-function(data, #simulation data
     # create some space to the left of the legend
     p1 + theme(legend.box.margin = margin(0, 0, 0, 12))
   )
-  
   #Create final ensemble
   plot_grid(g2, legend, rel_widths = c(3, .6))
 }

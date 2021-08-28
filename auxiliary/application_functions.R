@@ -66,8 +66,8 @@ create_results_table <- function(Lasso_model, #results of CV Lasso
   Lasso_coef <- predict(Lasso_model, type="coefficients", s="lambda.min")
   Lasso_coef <- data.frame(data.matrix(Lasso_coef)) # create data frame
   Lasso_coef$Var <- row.names(Lasso_coef) # retrieve variable names
-  Lasso_coef <- Lasso_coef[Lasso_coef$lambda.min != 0,]
-  Lasso_coef <- Lasso_coef[sort(abs(Lasso_coef$lambda.min),decreasing=T,index.return=T)[[2]],]
+  Lasso_coef <- Lasso_coef[Lasso_coef$X1 != 0,]
+  Lasso_coef <- Lasso_coef[sort(abs(as.numeric(Lasso_coef$X1)),decreasing=T,index.return=T)[[2]],]
   Lasso_coef$Rank <- seq(1, length(Lasso_coef$Var), by=1)
   
   
@@ -75,8 +75,8 @@ create_results_table <- function(Lasso_model, #results of CV Lasso
   rel_Lasso_coef <- predict(rel_Lasso_model, type="coefficients", s="lambda.min")
   rel_Lasso_coef <- data.frame(data.matrix(rel_Lasso_coef)) # create data frame
   rel_Lasso_coef$Var <- row.names(rel_Lasso_coef) # retrieve variable names
-  rel_Lasso_coef <- rel_Lasso_coef[rel_Lasso_coef$lambda.min != 0,]
-  rel_Lasso_coef <- rel_Lasso_coef[sort(abs(rel_Lasso_coef$lambda.min),decreasing=T,index.return=T)[[2]],]
+  rel_Lasso_coef <- rel_Lasso_coef[rel_Lasso_coef$X1 != 0,]
+  rel_Lasso_coef <- rel_Lasso_coef[sort(abs(as.numeric(rel_Lasso_coef$X1)),decreasing=T,index.return=T)[[2]],]
   rel_Lasso_coef$Rank <- seq(1, length(rel_Lasso_coef$Var), by=1)
   
   
@@ -86,6 +86,7 @@ create_results_table <- function(Lasso_model, #results of CV Lasso
   RF_vars <- data.frame(RF_vars)
   RF_vars$Rank <- row.names(RF_vars) # retrieve variable names
   colnames(RF_vars) = c("Var", "Rank")
+  RF_vars$Var = as.character(RF_vars$Var)
   
   #Sala-I-Martin
   CDF <- list("GDP level 1960" = 1,
@@ -139,7 +140,8 @@ create_results_table <- function(Lasso_model, #results of CV Lasso
                           "Lasso" = "",
                           #"relaxed Lasso1" = NaN,
                           "relaxed Lasso" = "",
-                          "Random Forest" = "")
+                          "Random Forest" = "",
+                          stringsAsFactors = FALSE)
   
   # Filling CDF
   appli_res$CDF[1:length(CDF$Var)] = CDF$unlist.CDF
