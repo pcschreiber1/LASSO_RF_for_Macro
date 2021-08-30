@@ -447,6 +447,7 @@ plot_simulation_results <-function(data, #simulation data
     geom_split_violin(color="white", trim=TRUE) +
     scale_fill_brewer(palette="Dark2") +
     theme_bw() +
+    ylab("Number of Nonzero Coeff") +
     theme(legend.position=c(0.9,.75)) #+
     #scale_y_continuous(limits = c(0, NA))
   
